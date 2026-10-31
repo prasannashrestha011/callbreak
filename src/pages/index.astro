@@ -139,7 +139,7 @@ const suits = ['spade', 'heart', 'club', 'diamond'];
     <p>Five rounds. Four friends. Every call counts.</p>
     <ol class="guide-list">
       <li>Set each player’s bid from 1 to 13, then choose “Lock bids.”</li>
-      <li>Choose “Record tricks” to save the values on the player cards as tricks won and move to the next round.</li>
+      <li>After play, choose “Record tricks,” enter how many tricks each player actually won, and choose “Save round.”</li>
       <li>Use “Edit last result” for corrections. A made bid earns its value plus 0.1 per extra trick; a missed bid loses its value.</li>
       <li>After five rounds, the highest total wins. Your full scorecard is saved in History.</li>
       <li>Choose “New game” to save your current game as a draft. Choose “Continue” in History to pick it up again.</li>
@@ -151,11 +151,11 @@ const suits = ['spade', 'heart', 'club', 'diamond'];
 
   <dialog id="result-dialog" aria-labelledby="result-title" aria-describedby="result-description">
     <form id="result-form">
-      <h2 id="result-title">Edit last result</h2>
-      <p id="result-description">Update the tricks each player won.</p>
-      <div class="dialog-fields">{DEFAULT_NAMES.map((name, index) => <label><span data-result-name={index}>{name}</span><span class="input-hint" data-result-bid={index}>3 bid</span><input name={`won${index}`} type="number" min="0" max="13" step="1" required inputmode="numeric" value="0" /></label>)}</div>
+      <h2 id="result-title">Tricks won</h2>
+      <p id="result-description">Enter the tricks each player actually won.</p>
+      <div class="dialog-fields">{DEFAULT_NAMES.map((name, index) => <label><span data-result-name={index}>{name}</span><span class="input-hint" data-result-bid={index}>3 bid</span><input name={`won${index}`} type="number" min="0" max="13" step="1" required inputmode="numeric" /></label>)}</div>
       <p class="form-error" id="result-error" role="alert" hidden></p>
-      <div class="dialog-actions"><button type="button" class="text-button" id="cancel-result">Cancel</button><button type="submit" class="primary-button" id="save-result">Save changes</button></div>
+      <div class="dialog-actions"><button type="button" class="text-button" id="cancel-result">Cancel</button><button type="submit" class="primary-button" id="save-result">Save round</button></div>
     </form>
   </dialog>
 

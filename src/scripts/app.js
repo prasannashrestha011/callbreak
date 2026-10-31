@@ -55,7 +55,8 @@ function scoreRows(game) {
 
 function renderHistory() {
   const drafts = state.history.filter(game => game.rounds.length < 5).length;
-  $('#history-count').textContent = `${drafts} ${drafts === 1 ? 'draft' : 'drafts'} · ${state.history.length - drafts} completed games`;
+  const completed = state.history.length - drafts;
+  $('#history-count').textContent = `${drafts} ${drafts === 1 ? 'draft' : 'drafts'} · ${completed} completed ${completed === 1 ? 'game' : 'games'}`;
   if (!state.history.length) {
     $('#history-list').innerHTML = `<div class="empty-history">${icon('history-icon')}<h3>The first of many good games.</h3><p>Finish a game or choose New game to save your current table as a draft. You can continue drafts from here.</p><a class="primary-button" href="#game">Let’s play ${icon('back')}</a></div>`;
     return;
@@ -115,7 +116,7 @@ function render() {
   });
   $('#round-tag').textContent = complete ? '5 rounds complete' : `Round ${round} of 5`;
   $('#bids-heading').textContent = complete ? 'That’s a wrap!' : 'The table';
-  $('#bid-instructions').textContent = complete ? 'A good game, safely tucked into History.' : game.locked ? 'All bids are in. Record the values on the cards as tricks.' : 'Set everyone’s bid, then lock them in.';
+  $('#bid-instructions').textContent = complete ? 'A good game, safely tucked into History.' : game.locked ? 'After play, record the tricks each player actually won.' : 'Set everyone’s bid, then lock them in.';
   $('#bid-total').textContent = complete ? 'Good company. Great game.' : game.locked ? 'Bids are locked. Game on!' : `${game.bids.reduce((a, b) => a + b, 0)} total bids`;
   $('#bid-status').textContent = complete ? 'Your full scorecard is in History.' : game.locked ? `Your calls are set for round ${round}.` : 'All four players are ready to call.';
   $('#lock-label').textContent = complete ? 'Play again' : game.locked ? 'Record tricks' : 'Lock bids';
@@ -169,7 +170,7 @@ $('#history-list').addEventListener('click', event => {
 $('#lock-bids').addEventListener('click', () => {
   if (state.active.rounds.length === 5) {
     newGame();
-  } else if (state.active.locked) commit(recordResult(state, state.active.bids));
+  } else if (state.active.locked) openResults();
   else commit({ ...state, active: { ...state.active, locked: true } });
 });
 $('#unlock-bids').addEventListener('click', () => {
@@ -202,29 +203,32 @@ $('#cancel-players').addEventListener('click', () => playerDialog.close());
 
 const resultDialog = $('#result-dialog');
 const resultForm = $('#result-form');
+let editingResult = false;
 function readTricks() {
   return state.active.names.map((_, i) => resultForm.elements.namedItem(`won${i}`).valueAsNumber);
 }
-function openResults() {
+function openResults(editing = false) {
   const game = state.active;
-  const result = game.rounds.at(-1);
-  $('#result-title').textContent = `Edit round ${game.rounds.length}`;
-  $('#result-description').textContent = 'Update the tricks each player won.';
+  editingResult = editing;
+  const result = editing ? game.rounds.at(-1) : { bids: game.bids };
+  $('#result-title').textContent = editing ? `Edit round ${game.rounds.length}` : `Round ${game.rounds.length + 1}: tricks won`;
+  $('#result-description').textContent = editing ? 'Update the tricks each player won.' : 'Enter the tricks each player actually won. Your locked bids stay the same.';
+  $('#save-result').textContent = editing ? 'Save changes' : 'Save round';
   game.names.forEach((name, i) => {
     $(`[data-result-name="${i}"]`).textContent = name;
     $(`[data-result-bid="${i}"]`).textContent = `${result.bids[i]} bid`;
-    resultForm.elements.namedItem(`won${i}`).value = result.won[i];
+    resultForm.elements.namedItem(`won${i}`).value = editing ? result.won[i] : '';
   });
   $('#result-error').hidden = true;
   resultDialog.showModal();
 }
-$('#edit-result').addEventListener('click', openResults);
+$('#edit-result').addEventListener('click', () => openResults(true));
 resultForm.addEventListener('input', () => { $('#result-error').hidden = true; });
 resultForm.addEventListener('submit', event => {
   event.preventDefault();
   if (!resultForm.reportValidity()) return;
   try {
-    commit(recordResult(state, readTricks(), true));
+    commit(recordResult(state, readTricks(), editingResult));
     resultDialog.close();
   } catch (error) {
     $('#result-error').textContent = error.message;

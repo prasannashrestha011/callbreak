@@ -121,20 +121,23 @@ test('results require locked bids and valid individual trick counts', () => {
   assert.equal(state.active.rounds.length, 0);
 });
 
-test('records the card values directly without a total-tricks check', () => {
+test('records actual tricks independently of locked bids without a total-tricks check', () => {
   for (const bids of [[3, 3, 3, 3], [13, 13, 13, 13]]) {
     const state = fresh();
     state.active.bids = bids;
     state.active.locked = true;
-    const next = recordResult(state, state.active.bids);
-    assert.deepEqual(next.active.rounds[0], { bids, won: bids });
-    assert.deepEqual(totals(next.active), bids.map(bid => bid * 10));
+    const won = [0, 4, 5, 6];
+    const next = recordResult(state, won);
+    assert.deepEqual(next.active.rounds[0], { bids, won });
+    assert.deepEqual(totals(next.active), bids.map((bid, i) => roundPoints(bid, won[i])));
     assert.equal(next.active.locked, false);
     assert.equal(validState(JSON.parse(JSON.stringify(next))), true);
     assert.equal(state.active.rounds.length, 0);
     const recordedBid = bids[0];
     next.active.bids[0] = 1;
-    assert.equal(next.active.rounds[0].won[0], recordedBid);
+    won[0] = 13;
+    assert.equal(next.active.rounds[0].bids[0], recordedBid);
+    assert.equal(next.active.rounds[0].won[0], 0);
   }
 });
 
