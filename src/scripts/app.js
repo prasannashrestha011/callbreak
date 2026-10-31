@@ -1,4 +1,4 @@
-import { createGame, startNewGame, continueGame, STORAGE_KEY, validState, validNames, migrateDefaultNames, recordResult, roundPoints, displayPoints, totals } from '../lib/game.js';
+import { createGame, startNewGame, continueGame, lockBids, needsRedeal, STORAGE_KEY, validState, validNames, validTricks, migrateDefaultNames, recordResult, roundPoints, displayPoints, totals } from '../lib/game.js';
 
 const $ = selector => document.querySelector(selector);
 const colors = ['var(--mint)', 'var(--peach)', 'var(--lilac)', 'var(--blue)'];
@@ -100,6 +100,7 @@ function renderHistory() {
 function render() {
   const game = state.active;
   const complete = game.rounds.length === 5;
+  const redeal = !complete && needsRedeal(game.bids);
   const points = totals(game);
   const round = game.rounds.length + 1;
   game.names.forEach((name, i) => {
@@ -116,12 +117,12 @@ function render() {
   });
   $('#round-tag').textContent = complete ? '5 rounds complete' : `Round ${round} of 5`;
   $('#bids-heading').textContent = complete ? 'That’s a wrap!' : 'The table';
-  $('#bid-instructions').textContent = complete ? 'A good game, safely tucked into History.' : game.locked ? 'After play, record the tricks each player actually won.' : 'Set everyone’s bid, then lock them in.';
-  $('#bid-total').textContent = complete ? 'Good company. Great game.' : game.locked ? 'Bids are locked. Game on!' : `${game.bids.reduce((a, b) => a + b, 0)} total bids`;
-  $('#bid-status').textContent = complete ? 'Your full scorecard is in History.' : game.locked ? `Your calls are set for round ${round}.` : 'All four players are ready to call.';
-  $('#lock-label').textContent = complete ? 'Play again' : game.locked ? 'Record tricks' : 'Lock bids';
-  $('#lock-icon').setAttribute('href', complete ? '#plus' : game.locked ? '#score' : '#lock');
-  $('#status-icon').setAttribute('href', complete ? '#trophy' : game.locked ? '#check' : '#spade');
+  $('#bid-instructions').textContent = complete ? 'A good game, safely tucked into History.' : redeal ? 'Combined bids below 8 require a redeal.' : game.locked ? 'After play, record the tricks each player actually won.' : 'Set everyone’s bid, then lock them in.';
+  $('#bid-total').textContent = complete ? 'Good company. Great game.' : game.locked && !redeal ? 'Bids are locked. Game on!' : `${game.bids.reduce((a, b) => a + b, 0)} total bids`;
+  $('#bid-status').textContent = complete ? 'Your full scorecard is in History.' : redeal ? 'Redeal required for this hand.' : game.locked ? `Your calls are set for round ${round}.` : 'All four players are ready to call.';
+  $('#lock-label').textContent = complete ? 'Play again' : redeal ? 'Redeal' : game.locked ? 'Record tricks' : 'Lock bids';
+  $('#lock-icon').setAttribute('href', complete ? '#plus' : redeal ? '#history-icon' : game.locked ? '#score' : '#lock');
+  $('#status-icon').setAttribute('href', complete ? '#trophy' : redeal ? '#history-icon' : game.locked ? '#check' : '#spade');
   $('#unlock-bids').hidden = complete || !game.locked;
   $('#edit-players').hidden = complete;
   $('#rounds-played').textContent = game.rounds.length ? `${game.rounds.length} ${game.rounds.length === 1 ? 'round' : 'rounds'} played` : 'No rounds played yet';
@@ -170,8 +171,11 @@ $('#history-list').addEventListener('click', event => {
 $('#lock-bids').addEventListener('click', () => {
   if (state.active.rounds.length === 5) {
     newGame();
+  } else if (needsRedeal(state.active.bids)) {
+    commit(lockBids(state));
+    $('#bid-status').textContent = 'Redeal the cards, then set new bids.';
   } else if (state.active.locked) openResults();
-  else commit({ ...state, active: { ...state.active, locked: true } });
+  else commit(lockBids(state));
 });
 $('#unlock-bids').addEventListener('click', () => {
   commit({ ...state, active: { ...state.active, locked: false } });
@@ -207,12 +211,23 @@ let editingResult = false;
 function readTricks() {
   return state.active.names.map((_, i) => resultForm.elements.namedItem(`won${i}`).valueAsNumber);
 }
+function updateTrickTotal() {
+  const won = readTricks();
+  const entered = won.map(value => Number.isNaN(value) ? 0 : value);
+  const total = entered.reduce((sum, value) => sum + value, 0);
+  const valid = validTricks(entered);
+  $('#trick-total').textContent = valid
+    ? `Total: ${total} / 13 tricks${total > 13 ? ` · ${total - 13} too many` : ''}`
+    : 'Use whole numbers from 0 to 13.';
+  $('#trick-total').classList.toggle('form-error', !valid || total > 13);
+  $('#save-result').disabled = !validTricks(won) || total > 13;
+}
 function openResults(editing = false) {
   const game = state.active;
   editingResult = editing;
   const result = editing ? game.rounds.at(-1) : { bids: game.bids };
   $('#result-title').textContent = editing ? `Edit round ${game.rounds.length}` : `Round ${game.rounds.length + 1}: tricks won`;
-  $('#result-description').textContent = editing ? 'Update the tricks each player won.' : 'Enter the tricks each player actually won. Your locked bids stay the same.';
+  $('#result-description').textContent = editing ? 'Update the tricks each player won. The combined total must be 13 or less.' : 'Enter the tricks each player actually won. The combined total must be 13 or less.';
   $('#save-result').textContent = editing ? 'Save changes' : 'Save round';
   game.names.forEach((name, i) => {
     $(`[data-result-name="${i}"]`).textContent = name;
@@ -220,10 +235,14 @@ function openResults(editing = false) {
     resultForm.elements.namedItem(`won${i}`).value = editing ? result.won[i] : '';
   });
   $('#result-error').hidden = true;
+  updateTrickTotal();
   resultDialog.showModal();
 }
 $('#edit-result').addEventListener('click', () => openResults(true));
-resultForm.addEventListener('input', () => { $('#result-error').hidden = true; });
+resultForm.addEventListener('input', () => {
+  $('#result-error').hidden = true;
+  updateTrickTotal();
+});
 resultForm.addEventListener('submit', event => {
   event.preventDefault();
   if (!resultForm.reportValidity()) return;
