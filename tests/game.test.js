@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createGame, startNewGame, continueGame, migrateDefaultNames, roundPoints, displayPoints, totals, validState, validTricks, validNames, recordResult } from '../src/lib/game.js';
+import { createGame, startNewGame, continueGame, lockBids, migrateDefaultNames, roundPoints, displayPoints, totals, validState, validTricks, validNames, recordResult } from '../src/lib/game.js';
 
 const fresh = () => ({ version: 1, active: createGame(), history: [] });
 
@@ -27,7 +27,7 @@ test('new games preserve unfinished scores and locked bids as an independent dra
   let state = fresh();
   state.active.names = ['Sam', 'Alex', 'Lee', 'Jo'];
   state.active.locked = true;
-  state = recordResult(state, [4, 3, 2, 3]);
+  state = recordResult(state, [4, 3, 2, 4]);
   state.active.bids = [6, 2, 1, 4];
   state.active.locked = true;
   const original = structuredClone(state);
@@ -48,7 +48,7 @@ test('continuing a draft restores its exact round and saves the current game in 
   let state = fresh();
   state.active.bids = [4, 2, 3, 4];
   state.active.locked = true;
-  state = recordResult(state, [5, 2, 1, 4]);
+  state = recordResult(state, [5, 2, 2, 4]);
   state.active.bids = [2, 5, 3, 3];
   state.active.locked = true;
   const first = structuredClone(state.active);
@@ -121,12 +121,12 @@ test('results require locked bids and valid individual trick counts', () => {
   assert.equal(state.active.rounds.length, 0);
 });
 
-test('records actual tricks independently of locked bids without a total-tricks check', () => {
+test('records 13 actual tricks independently of locked bids', () => {
   for (const bids of [[3, 3, 3, 3], [13, 13, 13, 13]]) {
     const state = fresh();
     state.active.bids = bids;
     state.active.locked = true;
-    const won = [0, 4, 5, 6];
+    const won = [0, 4, 4, 5];
     const next = recordResult(state, won);
     assert.deepEqual(next.active.rounds[0], { bids, won });
     assert.deepEqual(totals(next.active), bids.map((bid, i) => roundPoints(bid, won[i])));
@@ -139,6 +139,80 @@ test('records actual tricks independently of locked bids without a total-tricks 
     assert.equal(next.active.rounds[0].bids[0], recordedBid);
     assert.equal(next.active.rounds[0].won[0], 0);
   }
+});
+
+test('accepts trick totals from 0 through 13 and rejects higher totals for new and edited results', () => {
+  let state = fresh();
+  state.active.locked = true;
+  const original = structuredClone(state);
+  const validTotals = [[0, 0, 0, 0], [1, 2, 3, 4], [3, 3, 3, 3], [13, 0, 0, 0]];
+  const invalidTotals = [[4, 4, 3, 3], [13, 13, 13, 13]];
+  for (const won of validTotals) {
+    const next = recordResult(state, won);
+    assert.deepEqual(next.active.rounds[0].won, won);
+    assert.equal(validState(next), true);
+    assert.deepEqual(state, original);
+  }
+  for (const won of invalidTotals) {
+    assert.throws(() => recordResult(state, won), /exceed 13/);
+    assert.deepEqual(state, original);
+  }
+  state = recordResult(state, [13, 0, 0, 0]);
+  assert.deepEqual(state.active.rounds[0].won, [13, 0, 0, 0]);
+  for (let i = 1; i < 5; i++) {
+    state.active.locked = true;
+    state = recordResult(state, [4, 3, 3, 3]);
+  }
+  const completed = structuredClone(state);
+  assert.throws(() => lockBids(state), /complete/);
+  for (const won of validTotals) {
+    const edited = recordResult(state, won, true);
+    assert.deepEqual(edited.active.rounds[4].won, won);
+    assert.deepEqual(edited.history[0].rounds[4].won, won);
+    assert.equal(validState(edited), true);
+    assert.deepEqual(state, completed);
+  }
+  for (const won of invalidTotals) {
+    assert.throws(() => recordResult(state, won, true), /exceed 13/);
+    assert.deepEqual(state, completed);
+  }
+});
+
+test('earlier saved rounds above the limit remain readable and can be corrected below 13', () => {
+  const state = fresh();
+  state.active.rounds = [{ bids: [3, 3, 3, 3], won: [4, 4, 4, 3] }];
+  assert.equal(validState(JSON.parse(JSON.stringify(state))), true);
+  assert.equal(validState(startNewGame(state)), true);
+  const corrected = recordResult(state, [3, 3, 3, 3], true);
+  assert.deepEqual(corrected.active.rounds[0].won, [3, 3, 3, 3]);
+  assert.deepEqual(state.active.rounds[0].won, [4, 4, 4, 3]);
+});
+
+test('bids below 8 redeal the current hand while preserving rounds, players, and history', () => {
+  let state = recordResult(lockBids(fresh()), [4, 3, 3, 3]);
+  state.history = [createGame(['A', 'B', 'C', 'D'])];
+  for (const bids of [[1, 1, 1, 1], [1, 2, 2, 2]]) {
+    state.active.bids = bids;
+    const original = structuredClone(state);
+    const next = lockBids(state);
+    assert.equal(next.active.locked, false);
+    assert.deepEqual(next.active, { ...original.active, bids: [3, 3, 3, 3], locked: false });
+    assert.deepEqual(next.history, original.history);
+    assert.deepEqual(state, original);
+    assert.equal(validState(next), true);
+  }
+  state.active.bids = [1, 2, 2, 2];
+  state.active.locked = true;
+  assert.throws(() => recordResult(state, [0, 0, 0, 0]), /redeal/);
+  for (const bids of [[2, 2, 2, 2], [13, 13, 13, 13]]) {
+    state.active.bids = bids;
+    const next = lockBids(state);
+    assert.equal(next.active.locked, true);
+    assert.deepEqual(next.active.bids, bids);
+    assert.equal(recordResult(next, [0, 0, 0, 0]).active.rounds.length, 2);
+  }
+  state.active.bids = [0, 2, 3, 3];
+  assert.throws(() => lockBids(state), /whole numbers/);
 });
 
 test('the fifth round archives once, edits update it, and a new game keeps its snapshot', () => {

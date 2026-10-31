@@ -27,6 +27,16 @@ export function continueGame(state, id) {
   return { ...state, active: structuredClone(draft), history: saveDraft(state).filter(game => game.id !== id) };
 }
 
+export const needsRedeal = bids => bids.reduce((sum, value) => sum + value, 0) < 8;
+
+export function lockBids(state) {
+  const game = state.active;
+  if (game.rounds.length === 5) throw new Error('This game is complete. Start a new game.');
+  if (!validBids(game.bids)) throw new Error('Bids must be whole numbers from 1 to 13.');
+  const redeal = needsRedeal(game.bids);
+  return { ...state, active: { ...game, bids: redeal ? [3, 3, 3, 3] : game.bids, locked: !redeal } };
+}
+
 // Scores use tenths to avoid floating-point rounding errors across rounds.
 export function roundPoints(bid, won) {
   return won < bid ? -bid * 10 : bid * 10 + won - bid;
@@ -67,8 +77,11 @@ export function validState(state) {
 export function recordResult(state, won, editing = false) {
   const game = state.active;
   if (!validTricks(won)) throw new Error('Each trick count must be a whole number from 0 to 13.');
+  // Keep older saved rounds readable while enforcing the total for every new or edited result.
+  if (won.reduce((sum, value) => sum + value, 0) > 13) throw new Error('The combined trick count cannot exceed 13.');
   if (editing && !game.rounds.length) throw new Error('There is no result to edit yet.');
   if (!editing && (game.rounds.length === 5 || !game.locked)) throw new Error('Lock the bids before recording a result.');
+  if (!editing && needsRedeal(game.bids)) throw new Error('Combined bids below 8 require a redeal.');
   const rounds = game.rounds.slice();
   if (editing) rounds[rounds.length - 1] = { ...rounds.at(-1), won: [...won] };
   else rounds.push({ bids: [...game.bids], won: [...won] });
