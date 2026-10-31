@@ -1,0 +1,13 @@
+---
+const { name, index, suit } = Astro.props;
+---
+<article class="player-card" data-player={index} aria-labelledby={`player-title-${index}`}>
+  <div class="player-top"><div class="player-identity"><span class="avatar" data-initial={index} aria-hidden="true">{name[0]}</span><div class="player-heading"><h3 id={`player-title-${index}`} data-name={index}>{name}</h3></div></div><svg class="player-suit" aria-hidden="true"><use href={`#${suit}`} /></svg></div>
+  <span class="bid-label" id={`bid-label-${index}`}>Bid</span>
+  <div class="bid-controls">
+    <button class="stepper" data-index={index} data-step="-1" aria-label={`Decrease ${name}’s bid`}><svg aria-hidden="true"><use href="#minus" /></svg></button>
+    <output class="bid-value" id={`bid-${index}`} aria-labelledby={`player-title-${index} bid-label-${index}`} aria-live="polite">3</output>
+    <button class="stepper" data-index={index} data-step="1" aria-label={`Increase ${name}’s bid`}><svg aria-hidden="true"><use href="#plus" /></svg></button>
+  </div>
+  <div class="player-foot"><span>Total points</span><strong data-player-total={index}>0</strong></div>
+</article>

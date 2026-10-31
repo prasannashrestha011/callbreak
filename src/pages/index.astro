@@ -1,0 +1,164 @@
+---
+import '../styles/global.css';
+import Icons from '../components/Icons.astro';
+import PlayerCard from '../components/PlayerCard.astro';
+import { DEFAULT_NAMES } from '../lib/game.js';
+const suits = ['spade', 'heart', 'club', 'diamond'];
+---
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f3f6ef">
+  <meta name="description" content="A friendly Call Break scorekeeper. Keep everyone's bids together and enjoy the game.">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <title>Callbreak — A good time, a good call.</title>
+  <script is:inline>
+    (() => {
+      const key = 'callbreak.theme';
+      let theme = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      try {
+        const saved = localStorage.getItem(key);
+        if (saved === 'dark' || saved === 'light') theme = saved;
+      } catch {}
+      function applyTheme() {
+        const dark = theme === 'dark';
+        document.documentElement.dataset.theme = theme;
+        document.querySelector('meta[name="theme-color"]').content = dark ? '#101211' : '#f3f6ef';
+        const button = document.querySelector('#theme-toggle');
+        if (button) {
+          button.setAttribute('aria-pressed', String(dark));
+          button.title = dark ? 'Switch to light theme' : 'Switch to black theme';
+        }
+      }
+      applyTheme();
+      document.addEventListener('DOMContentLoaded', () => {
+        applyTheme();
+        document.querySelector('#theme-toggle').addEventListener('click', () => {
+          theme = theme === 'dark' ? 'light' : 'dark';
+          applyTheme();
+          try { localStorage.setItem(key, theme); } catch {}
+        });
+      });
+    })();
+  </script>
+</head>
+<body>
+  <Icons />
+  <a class="skip" href="#game">Skip to the game</a>
+  <header class="site-header">
+    <div class="shell header-inner">
+      <a class="brand" href="#game" aria-label="Callbreak home">
+        <svg class="brand-mark" viewBox="0 0 46 48" aria-hidden="true"><rect x="4" y="6" width="28" height="37" rx="6" transform="rotate(-13 18 24)" opacity=".25"/><rect x="14" y="5" width="28" height="37" rx="6" transform="rotate(10 28 24)"/><use href="#spade" x="20" y="13" width="16" height="20" color="#f0f5df" transform="rotate(10 28 24)"/></svg>
+        callbreak<span class="sr-only"> scorekeeper</span>
+      </a>
+      <nav class="nav" aria-label="Main navigation">
+        <a href="#game" aria-current="page"><svg aria-hidden="true"><use href="#grid"/></svg>The table</a>
+        <a href="#scorecard"><svg aria-hidden="true"><use href="#score"/></svg>Scorecard</a>
+        <a href="#history"><svg aria-hidden="true"><use href="#history-icon"/></svg>History</a>
+      </nav>
+      <div class="header-actions">
+        <button class="theme-toggle" id="theme-toggle" aria-label="Black theme" aria-pressed="false" title="Switch to black theme"><svg class="theme-moon" aria-hidden="true"><use href="#moon"/></svg><svg class="theme-sun" aria-hidden="true"><use href="#sun"/></svg></button>
+        <button class="guide-button" id="open-guide" aria-label="Quick guide"><svg aria-hidden="true"><use href="#help"/></svg><span class="guide-label">Quick guide</span></button>
+      </div>
+    </div>
+  </header>
+  <noscript><p class="shell notice">Turn on JavaScript to keep bids and save games on this device.</p></noscript>
+  <p class="shell notice" id="storage-notice" role="alert" hidden></p>
+  <main class="shell" id="game">
+
+    <section aria-labelledby="bids-heading">
+      <div class="section-header">
+        <div>
+          <div class="title-row"><h1 id="bids-heading" tabindex="-1">The table</h1><span class="round-tag" id="round-tag">Round 1 of 5</span></div>
+          <p class="section-description" id="bid-instructions">Set everyone’s bid, then lock them in.</p>
+        </div>
+        <div class="table-actions">
+          <button class="text-button" id="edit-players"><svg aria-hidden="true"><use href="#edit"/></svg>Edit players</button>
+          <button class="secondary-button" data-new-game><svg aria-hidden="true"><use href="#plus"/></svg>New game</button>
+        </div>
+      </div>
+      <div class="players" id="players">{DEFAULT_NAMES.map((name, index) => <PlayerCard name={name} index={index} suit={suits[index]} />)}</div>
+      <div class="bid-summary">
+        <div class="summary-copy" role="status" aria-live="polite" aria-atomic="true">
+          <span class="summary-icon"><svg aria-hidden="true"><use id="status-icon" href="#spade"/></svg></span>
+          <div><strong id="bid-total">12 total bids</strong><p id="bid-status">All four players are ready to call.</p></div>
+        </div>
+        <div class="round-actions"><button class="text-button" id="unlock-bids" hidden>Edit bids</button><button class="primary-button" id="lock-bids"><svg aria-hidden="true"><use id="lock-icon" href="#lock"/></svg><span id="lock-label">Lock bids</span></button></div>
+      </div>
+    </section>
+
+    <div class="lower-grid">
+      <section id="scorecard" aria-labelledby="score-heading">
+        <div class="score-header"><h2 id="score-heading">Scorecard</h2><span id="rounds-played">No rounds played yet</span></div>
+        <div class="score-table-wrap" role="region" aria-label="Round scorecard">
+          <table>
+            <caption class="sr-only">Points, bids, and tricks won for the current game</caption>
+            <thead><tr><th scope="col">Round</th>{DEFAULT_NAMES.map((name, index) => <th scope="col" data-name={index}>{name}</th>)}</tr></thead>
+            <tbody id="score-rows"></tbody>
+            <tfoot id="score-totals"></tfoot>
+          </table>
+        </div>
+        <p class="score-legend"><svg aria-hidden="true"><use href="#help"/></svg>Each cell shows points, with the bid and tricks won underneath.</p>
+        <button class="text-button" id="edit-result" hidden><svg aria-hidden="true"><use href="#edit"/></svg>Edit last result</button>
+      </section>
+      <aside class="standings" aria-labelledby="standings-heading">
+        <h2 id="standings-heading"><svg aria-hidden="true"><use href="#trophy"/></svg>Standings</h2>
+        <ol class="standings-list"></ol>
+        <p class="standings-note" id="standings-note">A fresh table. Anyone’s game.</p>
+      </aside>
+    </div>
+  </main>
+  <main class="shell" id="history" hidden>
+    <section class="hero history-hero" aria-labelledby="history-welcome">
+      <div><h1 id="history-welcome">Good games. Great memories.</h1><p>The close calls, the comebacks, the “one more game.”</p></div>
+      <a class="text-button" href="#game"><svg aria-hidden="true"><use href="#back"/></svg>Back to the table</a>
+    </section>
+    <section aria-labelledby="history-heading">
+      <div class="section-header">
+        <div><h2 id="history-heading">Game history</h2><p class="section-description" id="history-count">Finished games and drafts, all together.</p></div>
+        <button class="secondary-button" data-new-game><svg aria-hidden="true"><use href="#plus"/></svg>New game</button>
+      </div>
+      <div class="history-list" id="history-list"></div>
+    </section>
+  </main>
+
+  <dialog id="players-dialog" aria-labelledby="players-title" aria-describedby="players-description">
+    <form id="players-form">
+      <h2 id="players-title">Who’s at the table?</h2>
+      <p id="players-description">Gather your crew. Names stay with this game.</p>
+      <div class="dialog-fields">
+        {DEFAULT_NAMES.map((name, index) => <label>Player {index + 1}<input name={`player${index}`} value={name} maxlength="18" required autocomplete="off" /></label>)}
+      </div>
+      <div class="dialog-actions"><button type="button" class="text-button" id="cancel-players">Cancel</button><button type="submit" class="primary-button">Save names</button></div>
+    </form>
+  </dialog>
+  <dialog id="guide-dialog" aria-labelledby="guide-title">
+    <h2 id="guide-title">A seat for everyone.</h2>
+    <p>Five rounds. Four friends. Every call counts.</p>
+    <ol class="guide-list">
+      <li>Set each player’s bid from 1 to 13, then choose “Lock bids.”</li>
+      <li>Choose “Record tricks” to save the values on the player cards as tricks won and move to the next round.</li>
+      <li>Use “Edit last result” for corrections. A made bid earns its value plus 0.1 per extra trick; a missed bid loses its value.</li>
+      <li>After five rounds, the highest total wins. Your full scorecard is saved in History.</li>
+      <li>Choose “New game” to save your current game as a draft. Choose “Continue” in History to pick it up again.</li>
+    </ol>
+    <p>Your current game and history are saved in this browser. Clearing browser data removes them.</p>
+    <div class="dialog-actions"><button class="primary-button" id="close-guide">Got it, let’s play</button></div>
+  </dialog>
+
+
+  <dialog id="result-dialog" aria-labelledby="result-title" aria-describedby="result-description">
+    <form id="result-form">
+      <h2 id="result-title">Edit last result</h2>
+      <p id="result-description">Update the tricks each player won.</p>
+      <div class="dialog-fields">{DEFAULT_NAMES.map((name, index) => <label><span data-result-name={index}>{name}</span><span class="input-hint" data-result-bid={index}>3 bid</span><input name={`won${index}`} type="number" min="0" max="13" step="1" required inputmode="numeric" value="0" /></label>)}</div>
+      <p class="form-error" id="result-error" role="alert" hidden></p>
+      <div class="dialog-actions"><button type="button" class="text-button" id="cancel-result">Cancel</button><button type="submit" class="primary-button" id="save-result">Save changes</button></div>
+    </form>
+  </dialog>
+
+  <script src="../scripts/app.js"></script>
+</body>
+</html>
